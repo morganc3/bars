@@ -1,39 +1,102 @@
 import requests
 import random
+from googleapiclient.discovery import build
 
-def get_image_url(query):
+from PIL import Image, ImageDraw, ImageFont
+import requests
+from io import BytesIO
 
-    r = requests.get("https://api.qwant.com/api/search/images",
-        params={
-            'count': 50,
-            'q': query,
-            't': 'images',
-            'safesearch': 1,
-            'locale': 'en_US',
-            'uiv': 4
-        },
-        headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36'
-        }
-    )
+import os
+api_key = os.getenv("GOOGLE_API_KEY")
+cse = os.getenv("GOOGLE_CSE")
+
+fnt = ImageFont.truetype('Impact.ttf', 42)
+img_width = 600
+img_height = 450
+
+# take a line and return a list of shorter lines that can be written to the image
+def format_lines(line):
+    # character count before newline
+    increment = 25
+    pos = 0
+    line_len = len(line)
+    toRet = []
+    lines_count = 0
+
+    while pos < line_len:
+        end_line_pos = pos+increment
+        while end_line_pos < len(line) and line[end_line_pos] != ' ':
+            # increment by 1 until we get to the end of a word
+            # so that the newline doesn't split in the middle of a word
+            end_line_pos = end_line_pos + 1
+        
+        lines_count = lines_count + 1
+        toRet.append('\n'*lines_count + line[pos:end_line_pos])
+        
+
+        if end_line_pos < line_len:
+            if line[end_line_pos] == ' ':
+                # skip the space so next line doesn't start with a space
+                end_line_pos = end_line_pos + 1
+        pos = end_line_pos
+
+    return toRet
 
 
-    response = r.json().get('data').get('result').get('items')
-    urls = [r.get('media') for r in response]
-    return random.choice(urls)
+def get_image_url(artist):
+
+    service = build("customsearch", "v1",
+                  developerKey=api_key)
+
+    # get search results 1-10
+    res1 = service.cse().list(
+        q=artist,
+        cx=cse,
+        searchType='image',
+        ).execute()
+
+    # get search results 10-20
+    res2 = service.cse().list(
+        q=artist,
+        cx=cse,
+        searchType='image',
+        start=11
+        ).execute()
+
+    items1 = res1.get('items')
+    items2 = res2.get('items')
+    items = items1 + items2
+    random_url = random.choice(items)['link']
+    return random_url
 
 
-def get_image(query, lyrics):
-    from PIL import Image, ImageDraw, ImageFont
-    import requests
-    from io import BytesIO
-    url = get_image_url(query)
+def get_image(url, lyrics):
     response = requests.get(url)
     img = Image.open(BytesIO(response.content))
-    newsize = (900, 600) 
+    newsize = (img_width, img_height) 
     img = img.resize(newsize)
     d = ImageDraw.Draw(img)
-    fnt = ImageFont.truetype('Impact.ttf', 35)
-    d.text((20,400), lyrics, font=fnt, fill=(255,255,255))
-    
-    img.save('test.png')
+    write_line(d,lyrics[0], top=True)
+    write_line(d,lyrics[1])
+    return img
+
+def drawTextWithOutline(draw, text, x, y):
+    draw.text((x-2, y-2), text,(0,0,0),font=fnt)
+    draw.text((x+2, y-2), text,(0,0,0),font=fnt)
+    draw.text((x+2, y+2), text,(0,0,0),font=fnt)
+    draw.text((x-2, y+2), text,(0,0,0),font=fnt)
+    draw.text((x, y), text, (255,255,255), font=fnt)
+
+def write_line(draw, line, top=False):
+    formatted_lines = format_lines(line)
+    for formatted_line in formatted_lines:
+        w, _ = draw.textsize(formatted_line, fnt)
+        height_position = 0
+        if top:
+            height_position = -50
+        else:
+            height_position = 300
+
+        drawTextWithOutline(draw, formatted_line, img_width/2 - w/2, height_position)
+
+

@@ -1,0 +1,5 @@
+flask-api>=2.0
+pillow>=7.0
+google-api-python-client>=1.10.0
+requests>=2.24.0
+pyquery>=1.4.1
