@@ -3,3 +3,4 @@ pillow>=7.0
 google-api-python-client>=1.10.0
 requests>=2.24.0
 pyquery>=1.4.1
+discord>=1.0.1
